@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zephyr Player — Test Console</title>
+
+    <!-- Single script: hls.js v1.5.13 is bundled inside zephyr.js.
+         (To bring your own hls.js version, load it first and use zephyr.core.js —
+         a page-provided window.Hls always wins over the bundled copy.) -->
+    <script src="../dist/zephyr.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #101418; color: #e6e8ea; font-family: system-ui, sans-serif; font-size: 14px; }
+        main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+        h1 { font-size: 20px; margin: 0 0 16px; } h1 small { color: #8a939c; font-weight: 400; }
+        .layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+        @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+        #playerContainer { aspect-ratio: 16 / 9; border-radius: 8px; background: #000; }
+
+        fieldset { border: 1px solid #2a323a; border-radius: 8px; margin: 0 0 12px; padding: 10px 12px 12px; }
+        legend { color: #f0a63c; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 0 6px; }
+        label { display: block; color: #aab3bb; font-size: 12px; margin: 8px 0 3px; }
+        label.check { display: flex; align-items: center; gap: 8px; color: #cdd4da; font-size: 13px; margin: 6px 0; cursor: pointer; }
+        label.check input { margin: 0; accent-color: #ED5555; }
+        input[type=text], input[type=number], select {
+            width: 100%; background: #0a0d10; color: #e6e8ea; border: 1px solid #2a323a;
+            border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+        input[type=color] { width: 44px; height: 28px; padding: 1px; border: 1px solid #2a323a; border-radius: 6px; background: #0a0d10; vertical-align: middle; }
+        input:focus, select:focus { outline: 1px solid #ED5555; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+        .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 12px; }
+        .inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+        button.demo { background: #ED5555; color: #fff; border: 0; border-radius: 6px;
+                      padding: 8px 14px; cursor: pointer; font-size: 13px; }
+        button.demo.alt { background: #2a323a; }
+        button.demo.big { width: 100%; padding: 12px; font-size: 15px; font-weight: 700; margin-top: 4px; }
+        button.demo:hover { filter: brightness(1.15); }
+        button.demo:disabled { opacity: .4; cursor: default; }
+        .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+        .row .lbl { color: #aab3bb; font-size: 12px; }
+        .row input[type=range] { width: 90px; accent-color: #ED5555; }
+        .row input[type=number] { width: 70px; }
+        .row select { width: auto; }
+
+        #eventLog { margin-top: 14px; background: #0a0d10; border-radius: 8px; padding: 12px;
+                    height: 240px; overflow-y: auto; font: 12px/1.6 ui-monospace, monospace; }
+        #eventLog div { color: #7ee29b; word-break: break-all; }
+        #eventLog div.err { color: #ff8181; }
+        #eventLog div.hb { color: #6db3f2; }
+        .hint { color: #6b757e; font-size: 11px; margin-top: 3px; }
+        .sdknote { color: #6b757e; font-size: 11px; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Zephyr Player <small>— test console: every setting + full runtime API</small></h1>
+
+    <div class="layout">
+        <!-- ============ Left: player + runtime controls + log ============ -->
+        <section>
+            <div id="playerContainer"></div>
+
+            <div class="row">
+                <button class="demo" id="btnToggle">Play / Pause</button>
+                <button class="demo alt" onclick="withPlayer(p => p.seekTo(p.getCurrentTime() - 10))">-10s</button>
+                <button class="demo alt" onclick="withPlayer(p => p.seekTo(p.getCurrentTime() + 30))">+30s</button>
+                <span class="lbl">Seek to</span>
+                <input type="number" id="seekSecs" value="60" min="0">
+                <button class="demo alt" onclick="withPlayer(p => p.seekTo(parseFloat(seekSecs.value) || 0))">Go</button>
+                <button class="demo alt" onclick="withPlayer(p => p.toggleFullscreen())">Fullscreen</button>
+                <button class="demo alt" onclick="withPlayer(p => p.togglePiP())">PiP</button>
+            </div>
+
+            <div class="row">
+                <span class="lbl">Volume</span>
+                <input type="range" id="volCtl" min="0" max="1" step="0.05" value="1"
+                       oninput="withPlayer(p => { p.setMute(false); p.setVolume(parseFloat(this.value)); })">
+                <button class="demo alt" onclick="withPlayer(p => p.setMute(!p.getMute()))">Mute</button>
+                <span class="lbl">Speed</span>
+                <select id="rateCtl" onchange="withPlayer(p => p.setPlaybackRate(parseFloat(this.value)))">
+                    <option>0.5</option><option>0.75</option><option selected>1</option>
+                    <option>1.25</option><option>1.5</option><option>2</option>
+                </select>
+                <span class="lbl">Quality</span>
+                <select id="qualityCtl" onchange="withPlayer(p => p.setLevel(parseInt(this.value)))">
+                    <option value="-1">Auto</option>
+                </select>
+            </div>
+
+            <div class="row">
+                <button class="demo alt" onclick="withPlayer(p => { controlsOn = !controlsOn; p.setControls(controlsOn); })">Toggle setControls()</button>
+                <button class="demo alt" onclick="withPlayer(p => log('qoe-snapshot', p.getQoESnapshot()))">QoE snapshot → log</button>
+                <button class="demo alt" onclick="switchSrc()">setSrc() ↔ swap src/backup</button>
+                <button class="demo alt" onclick="withPlayer(p => log('levels', p.getLevels()))">getLevels() → log</button>
+                <button class="demo alt" style="background:#7a2727" onclick="withPlayer(p => { p.destroy(); player = null; })">Destroy</button>
+            </div>
+
+            <div class="row">
+                <label class="check" style="margin:0"><input type="checkbox" id="logTimeupdate"> log timeupdate</label>
+                <label class="check" style="margin:0"><input type="checkbox" id="logPaused"> pause log</label>
+                <input type="text" id="logFilter" placeholder="filter events (e.g. ad, drm, heartbeat)" style="flex:1;min-width:140px">
+                <button class="demo alt" onclick="document.getElementById('eventLog').innerHTML = ''">Clear</button>
+            </div>
+            <div id="eventLog" aria-live="polite"></div>
+        </section>
+
+        <!-- ============ Right: full settings form ============ -->
+        <section id="configForm">
+            <fieldset>
+                <legend>Source</legend>
+                <label>Preset</label>
+                <select id="preset">
+                    <option value="">— pick a test stream —</option>
+                    <option value="mux">Mux VOD: Big Buck Bunny (multi-quality ABR)</option>
+                    <option value="apple">Apple bipbop (captions + many renditions)</option>
+                    <option value="live">Akamai live test stream (isLive)</option>
+                </select>
+                <label>HLS src URL</label>
+                <input type="text" id="srcUrl" value="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">
+                <label>Backup src URL (auto-failover — put a bad primary URL to test)</label>
+                <input type="text" id="backupUrl" value="">
+                <label>Title</label>
+                <input type="text" id="title" value="Big Buck Bunny (HLS test stream)">
+                <label class="check"><input type="checkbox" id="isLive"> isLive (live badge, go-to-live, no progress/speed)</label>
+                <label class="check"><input type="checkbox" id="autoplay"> autoplay</label>
+                <label class="check"><input type="checkbox" id="mutedFallback" checked> mutedAutoplayFallback</label>
+                <label class="check"><input type="checkbox" id="lowLatency"> lowLatencyMode</label>
+                <label class="check"><input type="checkbox" id="forceNative"> forceNativeHlsOnAppleDevices</label>
+            </fieldset>
+
+            <fieldset>
+                <legend>UI / Skin</legend>
+                <div class="inline">
+                    <span class="hint">accent</span><input type="color" id="accentColor" value="#ED5555">
+                    <span class="hint">buttons</span><input type="color" id="buttonColor" value="#FFFFFF">
+                </div>
+                <label>Menu/overlay background (any CSS color)</label>
+                <input type="text" id="bgColor" value="rgba(0,0,0,0.7)">
+                <label>Watermark image URL (logoWatermark)</label>
+                <input type="text" id="watermark" placeholder="https://.../logo.png">
+                <div class="grid2">
+                    <div>
+                        <label>logoPosition</label>
+                        <select id="logoPosition">
+                            <option>topleft</option><option>topright</option>
+                            <option>bottomleft</option><option>bottomright</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>delayToFade (ms)</label>
+                        <input type="number" id="delayToFade" value="3000">
+                    </div>
+                </div>
+                <div class="grid2">
+                    <div><label>quickRewind (s)</label><input type="number" id="quickRewind" value="10"></div>
+                    <div><label>quickForward (s)</label><input type="number" id="quickForward" value="10"></div>
+                </div>
+                <label class="check"><input type="checkbox" id="pip" checked> pip button</label>
+                <label class="check"><input type="checkbox" id="sharing" checked> sharing button</label>
+                <label>errorCustomText</label>
+                <input type="text" id="errorCustomText" value="This content is currently unavailable. Please try again later.">
+                <label class="check"><input type="checkbox" id="errorOnlyCustom"> errorOnlyShowCustomText</label>
+            </fieldset>
+
+            <fieldset>
+                <legend>DRM <span class="sdknote">(needs a protected stream + license server)</span></legend>
+                <label>Widevine licenseUrl</label>
+                <input type="text" id="wvLicense" placeholder="https://license.example.com/wv">
+                <label>Widevine certificateUrl (optional)</label>
+                <input type="text" id="wvCert" placeholder="https://license.example.com/wv/cert">
+                <label>PlayReady licenseUrl</label>
+                <input type="text" id="prLicense" placeholder="https://license.example.com/pr">
+                <label>FairPlay certificateUrl (Safari)</label>
+                <input type="text" id="fpCert" placeholder="https://license.example.com/fairplay.cer">
+                <label>FairPlay licenseUrl (Safari)</label>
+                <input type="text" id="fpLicense" placeholder="https://license.example.com/fps">
+                <label>ClearKey licenseUrl</label>
+                <input type="text" id="ckLicense" placeholder="https://license.example.com/ck">
+                <div class="hint">Watch for drmkeysystemselected / drmlicenseacquired / drmerror in the log.</div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Ads (Google IMA)</legend>
+                <label class="check"><input type="checkbox" id="adsEnabled"> enable ads (loads ima3.js on demand)</label>
+                <label>adTagUrl (VAST/VMAP)</label>
+                <input type="text" id="adTagUrl">
+                <button class="demo alt" type="button" onclick="fillSampleAdTag()">Fill Google sample VAST tag</button>
+                <label class="check"><input type="checkbox" id="showAdOnPlay" checked> showAdOnPlay (pre-roll on first play)</label>
+                <label class="check"><input type="checkbox" id="adBlockerDetection" checked> adBlockerDetection</label>
+                <label>adBlockerDetectedMessage</label>
+                <input type="text" id="adBlockerMsg" value="Please disable your ad blocker to support us.">
+                <div class="hint">ima3.js is an unversioned Google loader — no SRI possible; it is only injected when this box is ticked.</div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Cast / AirPlay</legend>
+                <label class="check"><input type="checkbox" id="googleCast"> googleCast (loads cast_sender.js on demand — Chrome only)</label>
+                <label>receiverApplicationId (blank = default media receiver)</label>
+                <input type="text" id="castAppId" placeholder="CC1AD845">
+                <label class="check"><input type="checkbox" id="airplay" checked> airplay (Safari — button appears when a device is available)</label>
+            </fieldset>
+
+            <fieldset>
+                <legend>Analytics / QoE</legend>
+                <label>heartbeatInterval (seconds, 0 = off)</label>
+                <input type="number" id="heartbeat" value="15">
+                <label class="check"><input type="checkbox" id="dataLayerEvents"> dataLayerEvents (push zephyr:* to window.dataLayer)</label>
+                <div class="hint">Every event is already forwarded to this page's log via the wildcard adapter.</div>
+                <label>MUX envKey (loads mux-embed on demand)</label>
+                <input type="text" id="muxEnvKey" placeholder="your MUX Data env key">
+                <label>MUX video_title</label>
+                <input type="text" id="muxTitle" value="Zephyr demo">
+            </fieldset>
+
+            <button class="demo big" onclick="loadPlayer()">⟳ (Re)load player with these settings</button>
+            <div class="hint" style="text-align:center">Form values persist in localStorage.
+                <a href="#" style="color:#8a939c" onclick="localStorage.removeItem(LS_KEY); location.reload(); return false;">reset</a>
+            </div>
+        </section>
+    </div>
+</main>
+
+<script>
+    // ---------- presets ----------
+    const PRESETS = {
+        mux:   { src: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', title: 'Big Buck Bunny (HLS test stream)', live: false },
+        apple: { src: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8', title: 'Apple bipbop 16x9 (captions)', live: false },
+        live:  { src: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8', title: 'Akamai live test', live: true }
+    };
+    const SAMPLE_AD_TAG = 'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_ad_samples&sz=640x480&cust_params=sample_ct%3Dlinear&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator=';
+
+    const $ = (id) => document.getElementById(id);
+    let player = null;
+    let controlsOn = true;
+
+    function withPlayer(fn) {
+        if (!player) { log('demo', { message: 'no player — click "(Re)load player" first' }); return; }
+        fn(player);
+    }
+
+    function fillSampleAdTag() { $('adTagUrl').value = SAMPLE_AD_TAG; saveForm(); }
+
+    $('preset').addEventListener('change', () => {
+        const p = PRESETS[$('preset').value];
+        if (!p) return;
+        $('srcUrl').value = p.src;
+        $('title').value = p.title;
+        $('isLive').checked = p.live;
+        saveForm();
+    });
+
+    // ---------- form persistence ----------
+    const LS_KEY = 'zephyr-demo-form';
+    const formEls = () => document.querySelectorAll('#configForm input, #configForm select');
+    function saveForm() {
+        const data = {};
+        formEls().forEach((el) => { if (el.id) data[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
+        localStorage.setItem(LS_KEY, JSON.stringify(data));
+    }
+    function restoreForm() {
+        let data;
+        try { data = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { /* ignore */ }
+        if (!data) return;
+        formEls().forEach((el) => {
+            if (el.id in data) {
+                if (el.type === 'checkbox') el.checked = data[el.id];
+                else el.value = data[el.id];
+            }
+        });
+    }
+    document.getElementById('configForm').addEventListener('change', saveForm);
+    restoreForm();
+
+    // ---------- event log ----------
+    const logEl = $('eventLog');
+    function log(name, data) {
+        if ($('logPaused').checked) return;
+        if (name === 'timeupdate' && !$('logTimeupdate').checked) return;
+        const filter = $('logFilter').value.trim().toLowerCase();
+        if (filter && name.toLowerCase().indexOf(filter) === -1) return;
+        const line = document.createElement('div');
+        if (name === 'error' || name === 'hlserror' || name === 'aderror' || name === 'drmerror') line.className = 'err';
+        if (name === 'heartbeat' || name === 'qoe-snapshot') line.className = 'hb';
+        line.textContent = `${new Date().toISOString().slice(11, 19)}  ${name}  ${data !== undefined ? JSON.stringify(data) : ''}`;
+        logEl.appendChild(line);
+        while (logEl.children.length > 500) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // ---------- on-demand SDK loading ----------
+    // Google's IMA/Cast loaders and mux-embed are injected only when the
+    // matching feature is enabled. IMA/Cast are unversioned rolling loaders,
+    // so SRI is impossible for them (standard for those ecosystems).
+    const loadedScripts = {};
+    function loadScript(src) {
+        if (loadedScripts[src]) return loadedScripts[src];
+        loadedScripts[src] = new Promise((resolve) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = () => resolve(true);
+            s.onerror = () => { log('demo', { message: `failed to load ${src} (blocked?)` }); resolve(false); };
+            document.head.appendChild(s);
+        });
+        return loadedScripts[src];
+    }
+
+    // ---------- build settings from the form ----------
+    function buildSettings() {
+        const s = {
+            src: { hls: $('srcUrl').value.trim() },
+            backupSrc: $('backupUrl').value.trim() ? { hls: $('backupUrl').value.trim() } : null,
+            title: $('title').value.trim() || null,
+            isLive: $('isLive').checked,
+            autoplay: $('autoplay').checked,
+            mutedAutoplayFallback: $('mutedFallback').checked,
+            lowLatencyMode: $('lowLatency').checked,
+            forceNativeHlsOnAppleDevices: $('forceNative').checked,
+
+            skin: {
+                accentColor: $('accentColor').value,
+                backgroundColor: $('bgColor').value.trim() || 'rgba(0,0,0,0.7)',
+                buttonColor: $('buttonColor').value
+            },
+            logoWatermark: $('watermark').value.trim() || null,
+            logoPosition: $('logoPosition').value,
+            delayToFade: parseInt($('delayToFade').value) || 3000,
+            quickRewind: parseInt($('quickRewind').value) || 0,
+            quickForward: parseInt($('quickForward').value) || 0,
+            pip: $('pip').checked,
+            sharing: $('sharing').checked,
+            errorCustomText: $('errorCustomText').value.trim() || null,
+            errorOnlyShowCustomText: $('errorOnlyCustom').checked,
+
+            airplay: $('airplay').checked,
+            googleCast: $('googleCast').checked,
+
+            analytics: {
+                heartbeatInterval: parseInt($('heartbeat').value) || 0,
+                dataLayerEvents: $('dataLayerEvents').checked
+                // every event also reaches the log via the wildcard below
+            }
+        };
+
+        // DRM — only include systems whose license URL is filled in
+        const drm = {};
+        if ($('wvLicense').value.trim()) {
+            drm.widevine = { licenseUrl: $('wvLicense').value.trim() };
+            if ($('wvCert').value.trim()) drm.widevine.certificateUrl = $('wvCert').value.trim();
+        }
+        if ($('prLicense').value.trim()) drm.playready = { licenseUrl: $('prLicense').value.trim() };
+        if ($('fpLicense').value.trim() || $('fpCert').value.trim()) {
+            drm.fairplay = { licenseUrl: $('fpLicense').value.trim(), certificateUrl: $('fpCert').value.trim() };
+        }
+        if ($('ckLicense').value.trim()) drm.clearkey = { licenseUrl: $('ckLicense').value.trim() };
+        if (Object.keys(drm).length) s.drm = drm;
+
+        // Ads
+        if ($('adsEnabled').checked && $('adTagUrl').value.trim()) {
+            s.ads = {
+                adTagUrl: $('adTagUrl').value.trim(),
+                showAdOnPlay: $('showAdOnPlay').checked,
+                adBlockerDetection: $('adBlockerDetection').checked,
+                adBlockerDetectedMessage: $('adBlockerMsg').value.trim() || null
+            };
+        } else if ($('adBlockerDetection').checked && $('adsEnabled').checked) {
+            s.ads = { adBlockerDetection: true, adBlockerDetectedMessage: $('adBlockerMsg').value.trim() || null };
+        }
+
+        // Cast receiver override
+        if ($('castAppId').value.trim()) s.cast = { receiverApplicationId: $('castAppId').value.trim() };
+
+        // MUX
+        if ($('muxEnvKey').value.trim()) {
+            s.mux = { envKey: $('muxEnvKey').value.trim(), metadata: { video_title: $('muxTitle').value.trim() || 'Zephyr demo' } };
+        }
+        return s;
+    }
+
+    // ---------- (re)load ----------
+    async function loadPlayer() {
+        saveForm();
+        if (player) { player.destroy(); player = null; }
+        const settings = buildSettings();
+
+        // Pull in optional SDKs before init so the modules find them.
+        const sdks = [];
+        if (settings.ads && settings.ads.adTagUrl) sdks.push(loadScript('https://imasdk.googleapis.com/js/sdkloader/ima3.js'));
+        if (settings.googleCast) sdks.push(loadScript('https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1'));
+        if (settings.mux) sdks.push(loadScript('https://cdn.jsdelivr.net/npm/mux-embed@5/dist/mux.min.js'));
+        if (sdks.length) await Promise.all(sdks);
+
+        controlsOn = true;
+        player = new Zephyr('playerContainer');
+
+        // Wildcard: everything the player emits, into the log.
+        player.on('*', (name, data) => log(name, data));
+
+        // Keep runtime controls in sync.
+        player.on('levelsparsed', (data) => {
+            const sel = $('qualityCtl');
+            sel.innerHTML = '<option value="-1">Auto</option>';
+            (data.levels || []).forEach((level) => {
+                const opt = document.createElement('option');
+                opt.value = level.index;
+                opt.textContent = level.label;
+                sel.appendChild(opt);
+            });
+        });
+        player.on('volumechange', (data) => { $('volCtl').value = data.muted ? 0 : data.volume; });
+        player.on('ratechange', (data) => { $('rateCtl').value = String(data.rate); });
+
+        log('demo', { message: 'init()', settings });
+        player.init(settings);
+    }
+
+    function switchSrc() {
+        withPlayer((p) => {
+            const primary = $('srcUrl').value.trim();
+            const backup = $('backupUrl').value.trim();
+            if (!backup) { log('demo', { message: 'set a Backup src URL first to test setSrc()' }); return; }
+            // swap: play backup as new primary, keep old primary as failover
+            $('srcUrl').value = backup;
+            $('backupUrl').value = primary;
+            saveForm();
+            p.setSrc({ hls: backup }, { hls: primary });
+        });
+    }
+
+    $('btnToggle').addEventListener('click', () => withPlayer((p) => p.togglePlay()));
+
+    // Auto-load on first visit with the defaults.
+    loadPlayer();
+</script>
+</body>
+</html>

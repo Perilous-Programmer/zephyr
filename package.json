@@ -1,0 +1,12 @@
+{
+  "name": "zephyr-player",
+  "version": "1.0.0",
+  "description": "Zephyr — a global, dependency-light web player: HLS (hls.js/native), DRM (Widevine/PlayReady/ClearKey/FairPlay), Google IMA ads, Chromecast/AirPlay, QoE analytics + MUX, skinnable UI.",
+  "main": "dist/zephyr.js",
+  "scripts": {
+    "build": "node build.js",
+    "start": "node server.js"
+  },
+  "license": "MIT",
+  "private": true
+}
