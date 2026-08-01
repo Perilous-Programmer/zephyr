@@ -466,6 +466,12 @@ class ZephyrEngine {
         }
         if (drm.clearkey) {
             drmSystems['org.w3.clearkey'] = { licenseUrl: drm.clearkey.licenseUrl };
+            // HLS playlists signal ClearKey with a key id but no initData;
+            // hls.js >= 1.6 lets integrators build EME initData (e.g. W3C
+            // 'keyids') from it via this per-key-system hook.
+            if (typeof drm.clearkey.generateRequest === 'function') {
+                drmSystems['org.w3.clearkey'].generateRequest = drm.clearkey.generateRequest;
+            }
         }
         if (Object.keys(drmSystems).length > 0) {
             config.emeEnabled = true;
