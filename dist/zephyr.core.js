@@ -1846,6 +1846,7 @@ const ZEPHYR_DEFAULTS = {
     srcChangeAutoplay: true,
     playsInline: true,
     preload: 'metadata',
+    crossOrigin: null,         // null | 'anonymous' | 'use-credentials' — see init()
     initialVolume: 1,
     isLive: false,
     lowLatencyMode: false,
@@ -1920,7 +1921,16 @@ class Zephyr {
             this.video.setAttribute('playsinline', '');
             this.video.setAttribute('webkit-playsinline', '');
         }
-        this.video.crossOrigin = 'anonymous';
+        // Left unset by default. On Safari's native HLS pipeline the attribute
+        // switches media loading to CORS mode, which then demands
+        // Access-Control-Allow-Origin on the playlist, every segment and every
+        // key — token-gated/signed origins commonly don't send those, and
+        // playback fails outright. It buys nothing on the hls.js/MSE path
+        // (the element's src is a blob: URL there), so opt in only when the
+        // page needs canvas capture or cross-origin <track> subtitles.
+        if (this.settings.crossOrigin) {
+            this.video.crossOrigin = this.settings.crossOrigin;
+        }
 
         // Modules (UI first: it owns the DOM the others hang off)
         this.ui = new ZephyrUI(this);

@@ -57,6 +57,7 @@ All settings with defaults live in `ZEPHYR_DEFAULTS` ([src/player.js](src/player
 |---|---|---|
 | `src` / `backupSrc` | — | `{ hls: url }`; backup is used for automatic failover |
 | `autoplay`, `mutedAutoplayFallback` | `false`, `true` | muted retry on autoplay rejection |
+| `crossOrigin` | `null` | `'anonymous'`/`'use-credentials'` on the `<video>`. Leave unset unless you need canvas capture or cross-origin `<track>` subtitles — see the CORS note below |
 | `isLive` | `false` | live badge, go-to-live, hides progress/speed |
 | `hlsJSMaxBufferLength`, `hlsJSLiveSyncDuration`, `hlsJSStartLevel`, `hlsJSMinAutoBitrate`, `hlsJSAbrBandWidthFactor`, `hlsJSAbrBandWidthUpFactor`, `hlsJSLiveBackBufferLength` | ABR tuning | mapped onto hls.js config; `hlsConfig: {}` is a raw escape hatch |
 | `skin` | `{accentColor, backgroundColor, buttonColor}` | CSS custom properties |
@@ -69,6 +70,15 @@ All settings with defaults live in `ZEPHYR_DEFAULTS` ([src/player.js](src/player
 | `ads` | `null` | `adTagUrl`, `showAdOnPlay`, `adBlockerDetection`, `adBlockerDetectedMessage`, `locale` |
 | `analytics` | `null` | `adapter(name, data)`, `dataLayerEvents`, `heartbeatInterval` (s, `0` off) |
 | `mux` | `null` | `envKey`, `metadata` (needs `mux-embed` on the page) |
+
+### CORS and `crossOrigin`
+
+The two playback pipelines have different CORS requirements, and the `crossOrigin` attribute only affects one of them:
+
+- **hls.js / MSE** (Chrome, Firefox, Edge, and Safari unless FairPlay or `forceNativeHlsOnAppleDevices`): hls.js fetches the playlist and segments itself over XHR, so the origin must send `Access-Control-Allow-Origin` regardless. The `<video>` element's `src` is a `blob:` URL, so `crossOrigin` changes nothing here.
+- **Native HLS** (Safari with FairPlay/forced-native, or wherever MSE is unavailable): the browser's media stack does the fetching. With `crossOrigin` **unset** it loads in no-cors mode and works against any origin. Setting it to `'anonymous'` switches the whole media load to CORS mode — the playlist, *every* segment and *every* key must then carry `Access-Control-Allow-Origin`, or playback fails with a bare `MEDIA_ERR_SRC_NOT_SUPPORTED`. Signed/token-gated origins (Nginx `secure_link`, CloudFront signed URLs) frequently don't.
+
+So `crossOrigin` defaults to `null`. Set it only when the page draws the video to a `<canvas>` (thumbnails, scrubbing previews) or loads cross-origin `<track>` subtitles, and only once the origin actually sends CORS headers on the media.
 
 ## API
 
